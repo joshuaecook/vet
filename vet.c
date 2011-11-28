@@ -14,36 +14,34 @@
 #include "vet_types.h"
 
 /* Tree of test cases. */
-void *ttest = NULL;
+void *tentry = NULL;
 
 static int vet_entry_compare (const void *, const void *);
 
-void *vet_intern (struct vet_test *obj, const char *name, vet_status_fn def, vet_test_init_fn init)
+void *vet_intern (const char *name, vet_entry_init_fn init)
     {
     struct vet_entry mock;
     struct vet_entry *anew;
     void *ptr;
 
-    mock.key = name;
+    mock.name = name;
     
-    ptr = tfind(&mock, &ttest, vet_entry_compare);
+    ptr = tfind(&mock, &tentry, vet_entry_compare);
 
     if (ptr != NULL) return *(void **)ptr;
 
-    init();
-
     anew = (struct vet_entry *)malloc(sizeof(struct vet_entry));
     if (anew == NULL) err(EXIT_FAILURE, "Failed to allocate %s test case node.", name);
-    anew->key = name;
-    anew->val = obj;
 
-    ptr = tsearch(anew, &ttest, vet_entry_compare);
+    init(anew);
+
+    ptr = tsearch(anew, &tentry, vet_entry_compare);
     if (ptr == NULL) errx(EXIT_FAILURE, "Failed to internalize %s test case node.", name);
 
     return anew;
     }
 
-struct vet_test *vet_test_init (struct vet_test *obj, const char *name, vet_status_fn def)
+void vet_entry_init (struct vet_entry *obj, const char *name, vet_status_fn def)
     {
 
     obj->name = name;
@@ -51,29 +49,27 @@ struct vet_test *vet_test_init (struct vet_test *obj, const char *name, vet_stat
     obj->expects_failure = 0;
     obj->expects_signal = 0;
 
-    return obj;
+    return;
     }
 
-vet_status vet_test_vet (struct vet_entry *obj)
+vet_status vet_entry_vet (struct vet_entry *obj)
     {
-    struct vet_test *test;
     vet_status stat;
     pid_t pid, wpid;
     int xstat, xsig;
 
-    test = obj->val;
-
+#ifndef VET_NFORK
     pid = fork();
     if (0 == pid) 
         {
         /* Child process executes the test and exits. */
-        stat = test->fn(test);
+        stat = obj->fn(obj);
         _exit(VET_OK == stat ? EXIT_SUCCESS : EXIT_FAILURE);
         }
     else if (pid < 0) 
-        err(EXIT_FAILURE, "Failed to fork %s test case.", test->name);
+        err(EXIT_FAILURE, "Failed to fork %s test case.", obj->name);
 
-    printf("testing %s...", test->name);
+    printf("testing %s...", obj->name);
     do {
         wpid = waitpid(pid, &xstat, 0);
     } while (wpid < 0);
@@ -83,12 +79,17 @@ vet_status vet_test_vet (struct vet_entry *obj)
 
     if (WIFEXITED(xstat))
         {
-        stat = EXIT_SUCCESS == WEXITSTATUS(xstat) ? VET_OK : VET_FAILED;
+        stat = (
+            EXIT_SUCCESS == WEXITSTATUS(xstat) &&
+            0 == obj->expects_failure &&
+            0 == obj->expects_signal ?
+            VET_OK : VET_FAILED
+            );
         }
     else if (WIFSIGNALED(xstat))
         {
         xsig = WTERMSIG(xstat);
-        stat = xsig == test->expects_signal ? VET_OK : VET_SIGNALED;
+        stat = xsig == obj->expects_signal ? VET_OK : VET_SIGNALED;
         }
     else if (WIFSTOPPED(xstat))
         {
@@ -102,6 +103,10 @@ vet_status vet_test_vet (struct vet_entry *obj)
         {
         stat = VET_NOT_YET;
         }
+#else
+    printf("testing %s...", obj->name);
+    stat = obj->fn(obj);
+#endif
 
     switch (stat)
         {
@@ -112,10 +117,7 @@ vet_status vet_test_vet (struct vet_entry *obj)
             printf(" FAIL!\n");
             break;
         case VET_SIGNALED:
-            printf(" SIGNALED!\n");
-            printf("---\n");
-            psignal(xsig, NULL);
-            printf("---\n");
+            printf(" SIGNALED! %s\n", strsignal(xsig));
             break;
         case VET_STOPPED:
             printf(" STOPPED!\n");
@@ -133,7 +135,7 @@ vet_status vet_test_vet (struct vet_entry *obj)
 
 void vet_expects_signal (struct vet_entry *entry, int sig)
     {
-    entry->val->expects_signal = sig;
+    entry->expects_signal = sig;
     }
 
 static int vet_entry_compare (const void *a, const void *b)
@@ -144,6 +146,6 @@ static int vet_entry_compare (const void *a, const void *b)
     if (a == NULL && b == NULL) return  0;
     if (b != NULL && a == NULL) return -1;
     if (a != NULL && b == NULL) return  1;
-    return strncmp(va->key, vb->key, VET_MAX_NAME);
+    return strncmp(va->name, vb->name, VET_MAX_NAME);
     }
 

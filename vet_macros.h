@@ -12,7 +12,7 @@
 
 #define VET_TEST(NAME)                                                  \
   VET_TEST_PREAMBLE(NAME)                                               \
-  static vet_status vet_fn__ ## NAME (struct vet_test *vet)             \
+  static vet_status vet_fn__ ## NAME (struct vet_entry *vet)            \
   {                                                                     \
   
 
@@ -21,24 +21,23 @@
   }                                             \
 
 
-#define VET_TEST_PREAMBLE(NAME) \
-  static const char *vet_test_name__ ## NAME = QUOTE(NAME);             \
-  static struct vet_test vet_test__ ## NAME;                            \
-  static vet_status vet_fn__ ## NAME (struct vet_test *);               \
-  static void vet_test_init__ ## NAME ()                                \
+#define VET_TEST_PREAMBLE(NAME)                                         \
+  static struct vet_entry vet_entry__ ## NAME;                          \
+  static const char *vet_name__ ## NAME = QUOTE(NAME);                  \
+  static vet_status vet_fn__ ## NAME (struct vet_entry *);              \
+  static void vet_init__ ## NAME (struct vet_entry *vet)                \
   {                                                                     \
-    vet_test_init( &vet_test__ ## NAME , vet_test_name__ ## NAME , vet_fn__ ## NAME ); \
+    vet_entry_init( vet , VET_NAME(NAME) , VET_STATUS_FN(NAME) );       \
     return;                                                             \
   }                                                                     \
+  
 
-
-#define VET_NAME(NAME) vet_test_name__ ## NAME
+#define VET_NAME(NAME) vet_name__ ## NAME
 #define VET_STATUS_FN(NAME) vet_fn__ ## NAME
-#define VET_INIT_FN(NAME) vet_test_init__ ## NAME                       
+#define VET_INIT_FN(NAME) vet_init__ ## NAME                       
 
-#define VET_ID(NAME)                                                    \
-  vet_intern( &vet_test__ ## NAME , VET_NAME(NAME) , VET_STATUS_FN(NAME) , VET_INIT_FN(NAME) )
+#define VET_ID(NAME) vet_intern( VET_NAME(NAME) , VET_INIT_FN(NAME) )
 
-#define VET(ID) vet_test_vet( ID )                          
+#define VET(ID) vet_entry_vet( ID )                          
 
 #endif
