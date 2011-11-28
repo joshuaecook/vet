@@ -12,7 +12,6 @@
 /* The prototypical trivial test case. 
  * Unused. 
  */
-static struct vet_entry vet_entry___unused_;
 static const char *vet_name___unused_ = "unused";
 static vet_status vet_fn___unused_ (struct vet_entry *);
 static void vet_init___unused_ (struct vet_entry *vet)

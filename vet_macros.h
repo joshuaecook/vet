@@ -22,7 +22,6 @@
 
 
 #define VET_TEST_PREAMBLE(NAME)                                         \
-  static struct vet_entry vet_entry__ ## NAME;                          \
   static const char *vet_name__ ## NAME = QUOTE(NAME);                  \
   static vet_status vet_fn__ ## NAME (struct vet_entry *);              \
   static void vet_init__ ## NAME (struct vet_entry *vet)                \
