@@ -1,0 +1,9 @@
+Vet, a testing library for C
+
+Vet is intended to be a minimal environment in which to test C
+programs. Each test runs in its own address space, and tests may spawn
+child tests. Vet gracefully handles signals and crashes from the test
+processes.
+
+See vet.h and vet_macros.h for the public interfaces, and
+tests/vet_vet.c for a simple self-test example.
