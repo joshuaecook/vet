@@ -12,4 +12,19 @@ struct vet_entry
     const char *name;
     };
 
+struct vet_shared
+    {
+    vet_status status;
+    };
+
+struct vet_globals
+    {
+/* Search tree of test cases. */
+    void *tentry;
+/* I/O pipes for the test case child process. */
+    int vet_stdin_pipe[2];
+    int vet_stdout_pipe[2];
+    int vet_stderr_pipe[2];
+    };
+
 #endif

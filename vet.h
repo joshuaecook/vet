@@ -22,7 +22,6 @@ void vet_entry_init (struct vet_entry *, const char *, vet_status_fn);
 
 vet_status vet_entry_vet (struct vet_entry *);
 void *vet_intern (const char *, vet_entry_init_fn);
-
 void vet_expects_signal (struct vet_entry *, int);
 
 #endif

@@ -1,6 +1,7 @@
 /* vet.c */
 /* Copyright (C) 2011 by Joshua E Cook */
 #include <sys/wait.h>
+#include <sys/mman.h>
 
 #include <err.h>
 #include <search.h>
@@ -13,8 +14,7 @@
 #include "vet.h"
 #include "vet_types.h"
 
-/* Tree of test cases. */
-void *tentry = NULL;
+static struct vet_globals vet_global;
 
 static int vet_entry_compare (const void *, const void *);
 
@@ -22,6 +22,7 @@ void *vet_intern (const char *name, vet_entry_init_fn init)
     {
     struct vet_entry mock;
     struct vet_entry *anew;
+    void *tentry = vet_global.tentry;
     void *ptr;
 
     mock.name = name;
@@ -54,17 +55,23 @@ void vet_entry_init (struct vet_entry *obj, const char *name, vet_status_fn def)
 
 vet_status vet_entry_vet (struct vet_entry *obj)
     {
+    struct vet_shared *shm;
     vet_status stat;
     pid_t pid, wpid;
     int xstat, xsig;
 
 #ifndef VET_NFORK
+    shm = mmap(NULL, sizeof(struct vet_shared), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANON, -1, 0);
+    memset(shm, 0, sizeof(struct vet_shared));
+    shm->status = VET_NOT_YET;
+
     pid = fork();
     if (0 == pid) 
         {
         /* Child process executes the test and exits. */
         stat = obj->fn(obj);
-        _exit(VET_OK == stat ? EXIT_SUCCESS : EXIT_FAILURE);
+        shm->status = stat;
+        _exit(EXIT_SUCCESS);
         }
     else if (pid < 0) 
         err(EXIT_FAILURE, "Failed to fork %s test case.", obj->name);
@@ -79,12 +86,12 @@ vet_status vet_entry_vet (struct vet_entry *obj)
 
     if (WIFEXITED(xstat))
         {
-        stat = (
-            EXIT_SUCCESS == WEXITSTATUS(xstat) &&
-            0 == obj->expects_failure &&
-            0 == obj->expects_signal ?
-            VET_OK : VET_FAILED
-            );
+        if (EXIT_SUCCESS == WEXITSTATUS(xstat))
+            stat = (obj->expects_failure || obj->expects_signal
+                ? VET_FAILED : shm->status);
+        else
+            stat = (obj->expects_failure || obj->expects_signal
+                ? VET_OK : VET_FAILED);
         }
     else if (WIFSIGNALED(xstat))
         {
@@ -92,17 +99,11 @@ vet_status vet_entry_vet (struct vet_entry *obj)
         stat = xsig == obj->expects_signal ? VET_OK : VET_SIGNALED;
         }
     else if (WIFSTOPPED(xstat))
-        {
         stat = VET_STOPPED;
-        }
     else if (WCOREDUMP(xstat))
-        {
         stat = VET_DUMPED;
-        }
     else
-        {
         stat = VET_NOT_YET;
-        }
 #else
     printf("testing %s...", obj->name);
     stat = obj->fn(obj);
